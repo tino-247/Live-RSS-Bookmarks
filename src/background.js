@@ -11,6 +11,19 @@ const BOOKMARK_BAR_ID = "1";
  * @property {import("./config.js").FeedConfig} [oldValue]
  */
 
+
+function stripUrlParameters(url) {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    u.hash = '';
+    return u.href;
+  } catch (e) {
+    // fallback for relative URLs
+    return url.split(/[?#]/)[0];
+  }
+}
+
 /**
  * Initializes
  * @returns {Promise<void>} 
@@ -118,7 +131,8 @@ async function updateFeedBookmarks(feed) {
       console.log("Skipped ", title);
     }
     else {
-      await chrome.bookmarks.create({ title: title, url: item.link, parentId: folderId });
+      const url = feed.stripParameters ? stripUrlParameters(item.link) : item.link;
+      await chrome.bookmarks.create({ title: title, url: url, parentId: folderId });
     }
   }
 
