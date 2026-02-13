@@ -24,6 +24,7 @@
   "options_page": "html/options.html",
   "permissions": [
     "bookmarks",
+    "history",
     "alarms",
     "storage",
     "activeTab",

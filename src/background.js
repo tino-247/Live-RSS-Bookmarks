@@ -132,9 +132,13 @@ async function updateFeedBookmarks(feed) {
     return console.error(feed.name, e);
   }
 
+  const bookmarks = await chrome.bookmarks.getChildren(folderId);
+
+  // analyze which bookmarks have been opened and which haven't
+  updateVisitedMap(bookmarks);
+
   // remove existing bookmarks
-  const children = await chrome.bookmarks.getChildren(folderId);
-  await Promise.all(children.map((c) => chrome.bookmarks.remove(c.id)));
+  await Promise.all(bookmarks.map((c) => chrome.bookmarks.remove(c.id)));
 
   // create new bookmarks
   for (const item of rss.items) {
@@ -150,6 +154,69 @@ async function updateFeedBookmarks(feed) {
   }
 
   await chrome.bookmarks.create({ title: `Open ${feed.name}`, url: feed.url, parentId: folderId });
+}
+
+// Key in chrome.storage.local where results are kept
+const STORAGE_KEY = 'bookmarkVisitedMap';
+
+// returns true if history has at least one visit for url
+async function wasVisited(url) {
+  // chrome.history.getVisits returns visit records for the URL
+  return new Promise((resolve) => {
+    chrome.history.getVisits({ url }, (visits) => resolve(visits && visits.length > 0));
+  });
+}
+
+// Load stored map from chrome.storage.local
+function loadStoredMap() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([STORAGE_KEY], (res) => {
+      resolve(res[STORAGE_KEY] || {}); // map: { [bookmarkId]: { id, title, url, visited, lastChecked } }
+    });
+  });
+}
+
+// Save map to chrome.storage.local
+function saveStoredMap(map) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ [STORAGE_KEY]: map }, () => resolve());
+  });
+}
+
+// Main: fetch bookmarks, check visits, merge with stored map, update changed/new entries
+async function updateVisitedMap(bookmarks) {
+  const storedMap = await loadStoredMap();
+
+  // Keep bookmark entries that still exist (we'll prune deleted ones)
+  const newMap = {};
+
+  await Promise.all(bookmarks.map(async (b) => {
+    const visited = await wasVisited(b.url);
+    const now = Date.now();
+    const existing = storedMap[b.url];
+
+    // If existing and already visited, keep visited=true and preserve any earlier timestamp
+    const finalVisited = existing ? (existing.visited || visited) : visited;
+
+    newMap[b.url] = {
+      url: b.url,
+      title: b.title,
+      visited: finalVisited,
+      // store lastChecked so you can know when it was last verified
+      lastChecked: now
+    };
+  }));
+
+  // Optionally keep any stored entries for bookmarks that are not currently in tree
+  // (comment out if you want to remove deleted bookmarks from storage)
+  for (const id of Object.keys(storedMap)) {
+    if (!newMap[id]) {
+      newMap[id] = storedMap[id]; // preserve deleted bookmark record
+    }
+  }
+
+  await saveStoredMap(newMap);
+  return newMap;
 }
 
 chrome.storage.onChanged.addListener(async ({ config }) => {
