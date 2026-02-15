@@ -234,17 +234,24 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
       periodInMinutes: 20 });
   }
   chrome.alarms.onAlarm.addListener(async () => {
-    const config = await loadConfig();
-    await updateFeeds(config)
+    console.log("Alarm - reload");
+    await init();
   });
 });
 
 chrome.runtime.onMessage.addListener(async function(request, sender, sendResponse) {
     if (request.action === "loadFeeds") {
-      const config = await loadConfig();
-      await updateFeeds(config)
+      await init();
     }
 });
+
+chrome.idle.onStateChanged.addListener(async ({ newState }) => {
+  if (newState === "active") {
+    console.log("Active - reload");
+    await init();
+  }
+});
+
 
 (async () => {
   await init();

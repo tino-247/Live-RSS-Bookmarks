@@ -29,6 +29,7 @@
     "storage",
     "activeTab",
     "scripting",
+    "idle",
     "tabs"
   ],
   "host_permissions": [
