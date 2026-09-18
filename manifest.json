@@ -32,9 +32,6 @@
     "idle",
     "tabs"
   ],
-  "host_permissions": [
-    "http://*/",
-    "https://*/"
-  ],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "version": "5.1.4"
 }

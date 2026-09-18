@@ -47,6 +47,50 @@ function stripUrlParameters(url) {
   }
 }
 
+function addUrlParameters(url, addParameters) {
+  if (!url) return url;
+  if (!addParameters || typeof addParameters !== "string") return url;
+  const trimmed = addParameters.trim();
+  if (!trimmed) return url;
+
+  try {
+    const u = new URL(url);
+    const [paramsPart, newHash] = trimmed.split("#");
+    const cleanParams = paramsPart.replace(/^[?&]+/, "");
+
+    if (cleanParams) {
+      if (u.search) {
+        u.search += "&" + cleanParams;
+      } else {
+        u.search = "?" + cleanParams;
+      }
+    }
+
+    if (newHash !== undefined) {
+      u.hash = "#" + newHash;
+    }
+
+    return u.href;
+  } catch (e) {
+    const [paramsPart, newHash] = trimmed.split("#");
+    const cleanParams = paramsPart.replace(/^[?&]+/, "");
+    const [baseUrl, existingHash] = url.split("#");
+
+    let result = baseUrl;
+    if (cleanParams) {
+      const separator = baseUrl.includes("?") ? "&" : "?";
+      result += separator + cleanParams;
+    }
+
+    const finalHash = newHash !== undefined ? newHash : existingHash;
+    if (finalHash !== undefined) {
+      result += "#" + finalHash;
+    }
+
+    return result;
+  }
+}
+
 /**
  * Initializes
  * @returns {Promise<void>}
@@ -166,10 +210,11 @@ async function updateFeedBookmarks(feed) {
   try {
     rss = await parser.parseURL(feed.rssURL);
   } catch (e) {
-    return console.error(feed.name, e);
+    return console.error(
+      `Failed to fetch feed "${feed.name}" (${feed.rssURL}):`,
+      e,
+    );
   }
-
-  const bookmarks = await chrome.bookmarks.getChildren(folderId);
 
   // analyze which bookmarks have been opened and which haven't
   updateVisitedMap(bookmarks);
@@ -184,9 +229,12 @@ async function updateFeedBookmarks(feed) {
     if (feed.filter.length > 0 && pattern.test(title)) {
       console.log("Skipped ", title);
     } else {
-      const url = feed.stripParameters
+      let url = feed.stripParameters
         ? stripUrlParameters(item.link)
         : item.link;
+      if (feed.addParameters) {
+        url = addUrlParameters(url, feed.addParameters);
+      }
       await chrome.bookmarks.create({
         title: title,
         url: url,
